@@ -1,7 +1,7 @@
 module Main (main) where
 
-parseInput :: String -> [Int]
-parseInput = map read . words
+import Control.Monad.State
+import Data.Map qualified as M
 
 rule :: Int -> [Int]
 rule 0 = [1]
@@ -15,18 +15,34 @@ rule n =
 nDigits :: Int -> Int
 nDigits = length . takeWhile (> 0) . iterate (`div` 10)
 
-step :: [Int] -> [Int]
-step = concatMap rule
+type Cached a = State (M.Map (Int, Int) Int) a
+
+lengthAfterNSteps :: Int -> Int -> Cached Int
+lengthAfterNSteps 0 _ = pure 1
+lengthAfterNSteps steps num = do
+  cache <- get
+  case M.lookup (steps, num) cache of
+    Just len -> pure len
+    Nothing -> do
+      res <- sum <$> mapM (lengthAfterNSteps (steps - 1)) (rule num)
+      modify (M.insert (steps, num) res)
+      pure res
+
+evalLength :: Int -> [Int] -> Int
+evalLength steps nums =
+  flip evalState M.empty $ sum <$> mapM (lengthAfterNSteps steps) nums
+
+parseInput :: String -> [Int]
+parseInput = map read . words
 
 part1 :: [Int] -> Int
-part1 = length . (!! 25) . iterate step
+part1 = evalLength 25
 
--- part2 :: [Int] -> Int
--- part2 = length . (!! 75) . iterate step
+part2 :: [Int] -> Int
+part2 = evalLength 75
 
 main :: IO ()
 main = do
   input <- parseInput <$> readFile "input.txt"
   print $ part1 input
-
--- print $ part2 input
+  print $ part2 input
