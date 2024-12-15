@@ -5,14 +5,16 @@ import Data.List (find, foldl')
 import Data.Map qualified as M
 import Data.Maybe (fromJust, isNothing)
 
-type Vec = (Int, Int)
+type Pos = (Int, Int)
 
-type Pos = Vec
-
-type Direction = Vec
+data Direction = U | D | L | R
 
 move :: Direction -> Pos -> Pos
-move (dx, dy) (x, y) = (x + dx, y + dy)
+move d (x, y) = case d of
+  U -> (x - 1, y)
+  D -> (x + 1, y)
+  L -> (x, y - 1)
+  R -> (x, y + 1)
 
 data Object = BoxL | BoxR | Wall deriving (Eq)
 
@@ -22,8 +24,8 @@ moveThing :: Pos -> Direction -> M.Map Pos Object -> Maybe (M.Map Pos Object)
 moveThing pos d objects = case M.lookup pos objects of
   Nothing -> Just objects
   Just Wall -> Nothing
-  Just BoxL -> moveBoxes pos BoxL (move (0, 1) pos) BoxR
-  Just BoxR -> moveBoxes pos BoxR (move (0, -1) pos) BoxL
+  Just BoxL -> moveBoxes pos BoxL (move R pos) BoxR
+  Just BoxR -> moveBoxes pos BoxR (move L pos) BoxL
   where
     moveBoxes pos box adjacentPos adjacentBox = do
       objects' <- moveObj box pos objects
@@ -72,10 +74,10 @@ parseInput modWarehouseLine input =
       _ -> w
 
     parseDirection :: Char -> Direction
-    parseDirection '^' = (-1, 0)
-    parseDirection 'v' = (1, 0)
-    parseDirection '<' = (0, -1)
-    parseDirection '>' = (0, 1)
+    parseDirection '^' = U
+    parseDirection 'v' = D
+    parseDirection '<' = L
+    parseDirection '>' = R
 
 processInput :: (String -> String) -> String -> Int
 processInput modWarehouseLine input =
