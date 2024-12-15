@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Data.Functor ((<&>))
 import Data.List (find, foldl')
 import Data.Map qualified as M
 import Data.Maybe (fromJust, isNothing)
@@ -13,32 +14,24 @@ type Direction = Vec
 move :: Direction -> Pos -> Pos
 move (dx, dy) (x, y) = (x + dx, y + dy)
 
-line :: Direction -> Pos -> [Pos]
-line d = iterate (move d)
-
 data Object = Box | Wall deriving (Eq)
 
 data Warehouse = Warehouse {wRobot :: Pos, wObjects :: M.Map Pos Object}
 
+moveThing :: Pos -> Direction -> M.Map Pos Object -> Maybe (M.Map Pos Object)
+moveThing pos d objects = case M.lookup pos objects of
+  Nothing -> Just objects
+  Just Wall -> Nothing
+  Just Box -> do
+    let pos' = move d pos
+    moveThing pos' d objects <&> (M.insert pos' Box . M.delete pos)
+
 moveRobot :: Direction -> Warehouse -> Warehouse
-moveRobot d w@(Warehouse robot objects) = case M.lookup robot' objects of
-  Nothing -> w {wRobot = robot'}
-  Just Wall -> w
-  Just Box -> case findEmptyPos (line d robot') objects of
-    Nothing -> w
-    Just emptyPos ->
-      w
-        { wRobot = robot',
-          wObjects = (M.insert emptyPos Box . M.delete robot') objects
-        }
+moveRobot d w@(Warehouse robot objects) = case moveThing robot' d objects of
+  Nothing -> w
+  Just objects' -> w {wRobot = robot', wObjects = objects'}
   where
     robot' = move d robot
-
-    -- the first non-box position has to be an empty space
-    findEmptyPos :: [Pos] -> M.Map Pos Object -> Maybe Pos
-    findEmptyPos line objects =
-      let pos = fromJust $ find ((/= Just Box) . flip M.lookup objects) line
-       in if isNothing (M.lookup pos objects) then Just pos else Nothing
 
 coordinatesValue :: Pos -> Int
 coordinatesValue (x, y) = 100 * x + y
