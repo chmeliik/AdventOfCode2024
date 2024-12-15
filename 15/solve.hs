@@ -14,7 +14,7 @@ type Direction = Vec
 move :: Direction -> Pos -> Pos
 move (dx, dy) (x, y) = (x + dx, y + dy)
 
-data Object = Box | Wall deriving (Eq)
+data Object = BoxL | BoxR | Wall deriving (Eq)
 
 data Warehouse = Warehouse {wRobot :: Pos, wObjects :: M.Map Pos Object}
 
@@ -22,9 +22,18 @@ moveThing :: Pos -> Direction -> M.Map Pos Object -> Maybe (M.Map Pos Object)
 moveThing pos d objects = case M.lookup pos objects of
   Nothing -> Just objects
   Just Wall -> Nothing
-  Just Box -> do
-    let pos' = move d pos
-    moveThing pos' d objects <&> (M.insert pos' Box . M.delete pos)
+  Just BoxL -> moveBoxes pos BoxL (move (0, 1) pos) BoxR
+  Just BoxR -> moveBoxes pos BoxR (move (0, -1) pos) BoxL
+  where
+    moveBoxes pos box adjacentPos adjacentBox = do
+      objects' <- moveObj box pos objects
+      case M.lookup adjacentPos objects' of
+        Just o | o == adjacentBox -> moveObj adjacentBox adjacentPos objects'
+        _ -> pure objects'
+
+    moveObj obj pos objects = do
+      let pos' = move d pos
+      moveThing pos' d objects <&> (M.insert pos' obj . M.delete pos)
 
 moveRobot :: Direction -> Warehouse -> Warehouse
 moveRobot d w@(Warehouse robot objects) = case moveThing robot' d objects of
@@ -38,8 +47,8 @@ coordinatesValue (x, y) = 100 * x + y
 
 type Input = (Warehouse, [Direction])
 
-parseInput :: String -> Input
-parseInput input =
+parseInput :: (String -> String) -> String -> Input
+parseInput modWarehouseLine input =
   ( foldl' updateWarehouse emptyWarehouse warehouseData,
     map parseDirection directionsData
   )
@@ -49,7 +58,7 @@ parseInput input =
     warehouseData =
       [ ((x, y), c)
         | (x, line) <- zip [0 ..] warehouseLines,
-          (y, c) <- zip [0 ..] line
+          (y, c) <- zip [0 ..] (modWarehouseLine line)
       ]
     emptyWarehouse = Warehouse (-1, -1) M.empty
 
@@ -57,7 +66,9 @@ parseInput input =
     updateWarehouse w (p, c) = case c of
       '@' -> w {wRobot = p}
       '#' -> w {wObjects = M.insert p Wall (wObjects w)}
-      'O' -> w {wObjects = M.insert p Box (wObjects w)}
+      'O' -> w {wObjects = M.insert p BoxL (wObjects w)}
+      '[' -> w {wObjects = M.insert p BoxL (wObjects w)}
+      ']' -> w {wObjects = M.insert p BoxR (wObjects w)}
       _ -> w
 
     parseDirection :: Char -> Direction
@@ -66,12 +77,25 @@ parseInput input =
     parseDirection '<' = (0, -1)
     parseDirection '>' = (0, 1)
 
-part1 :: Input -> Int
-part1 (w, ds) =
-  let (Warehouse _ objects') = foldl' (flip moveRobot) w ds
-   in sum $ M.mapWithKey (\k v -> if v == Box then coordinatesValue k else 0) objects'
+processInput :: (String -> String) -> String -> Int
+processInput modWarehouseLine input =
+  let (w, ds) = parseInput modWarehouseLine input
+      (Warehouse _ objects') = foldl' (flip moveRobot) w ds
+   in sum $ M.mapWithKey (\k v -> if v == BoxL then coordinatesValue k else 0) objects'
+
+part1 :: String -> Int
+part1 = processInput id
+
+part2 :: String -> Int
+part2 = processInput (concatMap modify)
+  where
+    modify '#' = "##"
+    modify 'O' = "[]"
+    modify '.' = ".."
+    modify '@' = "@."
 
 main :: IO ()
 main = do
-  input <- parseInput <$> readFile "input.txt"
+  input <- readFile "input.txt"
   print $ part1 input
+  print $ part2 input
