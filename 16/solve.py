@@ -1,7 +1,7 @@
 import enum
 import heapq
 import math
-from typing import NamedTuple
+from typing import Iterator, NamedTuple
 
 
 class Direction(enum.IntEnum):
@@ -56,24 +56,32 @@ def cost(p1: FacingPos, p2: FacingPos) -> int:
 
 
 type MazeWalls = set[Pos]
+type Parents = dict[FacingPos, set[FacingPos]]
 
 
-def cheapest_path(walls: MazeWalls, start: FacingPos, end: Pos) -> int:
+def cheapest_paths(walls: MazeWalls, start: FacingPos, end: Pos) -> tuple[int, Parents]:
+    possible_parents: dict[FacingPos, set[FacingPos]] = {}
     distances: dict[FacingPos, int] = {start: 0}
     queue: list[tuple[int, FacingPos]] = [(0, start)]
 
     while queue:
         distance, current = heapq.heappop(queue)
         if current.pos == end:
-            return distance
+            return distance, possible_parents
 
         for neighbor in possible_moves(current):
             if neighbor.pos in walls:
                 continue
-            new_dist = distance + cost(current, neighbor)
-            if new_dist < distances.get(neighbor, math.inf):
-                distances[neighbor] = new_dist
-                heapq.heappush(queue, (new_dist, neighbor))
+
+            new_neighbor_dist = distance + cost(current, neighbor)
+            prev_neighbor_dist = distances.get(neighbor, math.inf)
+
+            if new_neighbor_dist < prev_neighbor_dist:
+                possible_parents[neighbor] = {current}
+                distances[neighbor] = new_neighbor_dist
+                heapq.heappush(queue, (new_neighbor_dist, neighbor))
+            elif new_neighbor_dist == prev_neighbor_dist:
+                possible_parents[neighbor].add(current)
 
     raise ValueError("couldn't reach endpos")
 
@@ -101,11 +109,25 @@ def parse_input(inp: str) -> Input:
     return walls, start, end
 
 
+def on_any_best_path(possible_parents: Parents, end: Pos) -> set[Pos]:
+    def walk_backwards(fp: FacingPos) -> Iterator[Pos]:
+        yield fp.pos
+        for parent in possible_parents.get(fp, set()):
+            yield from walk_backwards(parent)
+
+    end_fp = next(fp for fp in possible_parents if fp.pos == end)
+    return set(walk_backwards(end_fp))
+
+
 def main() -> None:
     with open("input.txt") as f:
-        inp = parse_input(f.read())
+        maze, start, end = parse_input(f.read())
 
-    print(cheapest_path(*inp))
+    price, possible_parents = cheapest_paths(maze, start, end)
+    on_best_paths = on_any_best_path(possible_parents, end)
+
+    print(price)
+    print(len(on_best_paths))
 
 
 if __name__ == "__main__":
