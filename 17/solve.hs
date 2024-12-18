@@ -4,6 +4,7 @@ import Control.Monad.State (State, evalState, gets, modify)
 import Data.Array.IArray (Array, bounds, listArray, (!))
 import Data.Bits (xor)
 import Data.List (foldl', intercalate)
+import Data.Maybe (catMaybes)
 
 data ProgramState = ProgramState
   { pInstructionPointer :: Int,
@@ -95,7 +96,7 @@ evalInstr instr n = case instr of
 
 type Program = Array Int Int
 
-evalAll :: Program -> RunProg [Int]
+evalAll :: Program -> RunProg [Maybe Int]
 evalAll program = do
   pointer <- gets pInstructionPointer
   let (_, end) = bounds program
@@ -107,9 +108,9 @@ evalAll program = do
       let operand = program ! (pointer + 1)
       v <- evalInstr instr operand
       vs <- evalAll program
-      pure $ maybe vs (: vs) v
+      pure $ v : vs
 
-evalProgram :: ProgramState -> Program -> [Int]
+evalProgram :: ProgramState -> Program -> [Maybe Int]
 evalProgram p instrs = evalState (evalAll instrs) p
 
 parseInput :: String -> (ProgramState, Program)
@@ -133,7 +134,7 @@ parseInput input = (programState, listArray (0, length program - 1) program)
     split x xs = let (as, bs) = break (== x) xs in as : split x (drop 1 bs)
 
 part1 :: (ProgramState, Program) -> String
-part1 = intercalate "," . map show . uncurry evalProgram
+part1 = intercalate "," . map show . catMaybes . uncurry evalProgram
 
 main :: IO ()
 main = do
