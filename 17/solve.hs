@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.Monad.State (State, evalState, gets, modify)
 import Data.Array.IArray (Array, bounds, listArray, (!))
-import Data.Bits (xor)
+import Data.Bits (shiftR, xor)
 import Data.List (foldl', intercalate)
 import Data.Maybe (catMaybes)
 
@@ -58,9 +58,7 @@ unaryOp f getA = do
   pure (f a)
 
 divideBy :: Int -> RunProg Int
-divideBy n = binOp divide pRegisterA ((2 ^) . combo n)
-  where
-    divide a b = truncate (realToFrac a / realToFrac b)
+divideBy n = binOp shiftR pRegisterA (combo n)
 
 update :: (Int -> ProgramState -> ProgramState) -> Int -> RunProg ()
 update how n = modify (how n)
