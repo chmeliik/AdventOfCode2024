@@ -18,14 +18,21 @@ def possible_moves(walls: MazeWalls, pos: Pos) -> list[Pos]:
     return [neighbor for neighbor in neighbors(pos) if neighbor not in walls]
 
 
-def possible_cheats(walls: MazeWalls, pos: Pos) -> set[Pos]:
-    return {
-        step2_neighbor
-        for neighbor in neighbors(pos)
-        for step2_neighbor in neighbors(neighbor)
-        if step2_neighbor != pos
-        if step2_neighbor not in walls
-    }
+def possible_cheats(walls: MazeWalls, pos: Pos, max_distance: int = 2) -> list[Pos]:
+    x, y = pos
+    return [
+        newpos
+        for x2 in range(x - max_distance, x + max_distance + 1)
+        for y2 in range(y - max_distance, y + max_distance + 1)
+        if 2 <= manhattan_dist(pos, newpos := (x2, y2)) <= max_distance
+        if newpos not in walls
+    ]
+
+
+def manhattan_dist(p1: Pos, p2: Pos) -> int:
+    x1, y1 = p1
+    x2, y2 = p2
+    return abs(x2 - x1) + abs(y2 - y1)
 
 
 def bfs(
@@ -83,21 +90,45 @@ def parse_input(inp: str) -> Input:
     return walls, start, end
 
 
-def part1(maze: MazeWalls, start: Pos, end: Pos) -> int:
-    distance, parents = bfs(end, start, partial(possible_moves, maze))
+def count_cheats_that_save_at_least(
+    picoseconds: int,
+    max_cheat_length: int,
+    maze: MazeWalls,
+    distances_from_end: dict[Pos, int],
+    normal_path_to_end: Iterable[Pos],
+) -> int:
     inf = float("inf")
+
+    def saves_at_least(pos: Pos, cheat: Pos, picoseconds: int) -> bool:
+        return (
+            distances_from_end[pos]
+            - distances_from_end.get(cheat, inf)
+            - manhattan_dist(pos, cheat)
+            >= picoseconds
+        )
+
     return sum(
-        distance[pos] - distance.get(cheat, inf) - 2 >= 100
-        for pos in walk_backwards(parents, start)
-        for cheat in possible_cheats(maze, pos)
+        saves_at_least(pos, cheat, picoseconds)
+        for pos in normal_path_to_end
+        for cheat in possible_cheats(maze, pos, max_cheat_length)
     )
 
+
+def part1(maze: MazeWalls, start: Pos, end: Pos) -> int:
+    distance, parents = bfs(end, start, partial(possible_moves, maze))
+    return count_cheats_that_save_at_least(100, 2, maze, distance, walk_backwards(parents, start))
+
+
+def part2(maze: MazeWalls, start: Pos, end: Pos) -> int:
+    distance, parents = bfs(end, start, partial(possible_moves, maze))
+    return count_cheats_that_save_at_least(100, 20, maze, distance, walk_backwards(parents, start))
 
 def main() -> None:
     with open("input.txt") as f:
         maze, start, end = parse_input(f.read())
 
     print(part1(maze, start, end))
+    print(part2(maze, start, end))
 
 
 if __name__ == "__main__":
