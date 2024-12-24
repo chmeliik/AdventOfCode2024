@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Control.Monad.State (State, execState, gets, modify)
 import Data.List (foldl', isPrefixOf)
 import Data.Map qualified as M
 import Data.Maybe (fromJust)
@@ -15,19 +16,34 @@ type Inputs = M.Map Wire Bool
 
 type Circuit = M.Map Wire Gate
 
-evalWire :: Inputs -> Circuit -> Wire -> Bool
-evalWire inputs circuit wire =
-  case M.lookup wire inputs of
-    Just b -> b
-    Nothing -> evalGate inputs circuit $ fromJust $ M.lookup wire circuit
+evalWire :: Circuit -> Wire -> State Inputs Bool
+evalWire circuit wire = do
+  maybeVal <- gets (M.lookup wire)
+  case maybeVal of
+    Just b -> pure b
+    Nothing -> do
+      b <- evalGate circuit $ fromJust $ M.lookup wire circuit
+      modify (M.insert wire b)
+      pure b
 
-evalGate :: Inputs -> Circuit -> Gate -> Bool
-evalGate inputs circuit gate = case gate of
-  And w1 w2 -> ev w1 && ev w2
-  Or w1 w2 -> ev w1 || ev w2
-  Xor w1 w2 -> ev w1 /= ev w2
+evalGate :: Circuit -> Gate -> State Inputs Bool
+evalGate circuit gate = case gate of
+  And w1 w2 -> (&&) <$> ev w1 <*> ev w2
+  Or w1 w2 -> (||) <$> ev w1 <*> ev w2
+  Xor w1 w2 -> (/=) <$> ev w1 <*> ev w2
   where
-    ev = evalWire inputs circuit
+    ev = evalWire circuit
+
+evalAll :: Inputs -> Circuit -> Inputs
+evalAll inputs circuit = execState evalWires inputs
+  where
+    evalWires = mapM (evalWire circuit) (M.keys circuit)
+
+toNumber :: Inputs -> String -> Int
+toNumber inputs wiretype = sum $ map eval wires
+  where
+    wires = filter (wiretype `isPrefixOf`) (M.keys inputs)
+    eval w = if M.lookup w inputs == Just True then 2 ^ read (tail w) else 0
 
 parseInput :: String -> (Inputs, Circuit)
 parseInput input = (foldl' addInput M.empty inputs, foldl' addGate M.empty gates)
@@ -51,10 +67,7 @@ parseInput input = (foldl' addInput M.empty inputs, foldl' addGate M.empty gates
           "XOR" -> Xor
 
 part1 :: (Inputs, Circuit) -> Int
-part1 (inputs, circuit) = sum $ map evalZ zs
-  where
-    zs = filter ("z" `isPrefixOf`) (M.keys circuit)
-    evalZ z = if evalWire inputs circuit z then 2 ^ read (tail z) else 0
+part1 (inputs, circuit) = toNumber (evalAll inputs circuit) "z"
 
 main :: IO ()
 main = do
