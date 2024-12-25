@@ -43,12 +43,13 @@ indirectlyType kpt chars =
     initialPos = getPos kpt 'A'
     positions = map (getPos kpt) chars
 
-indirectlyNType :: Int -> [Char] -> [Char]
-indirectlyNType 1 chars = indirectlyType NumPad chars
-indirectlyNType n chars = indirectlyType ArrowPad (indirectlyNType (n - 1) chars)
+lenAfterIndirections :: Int -> KeypadType -> [Char] -> Int
+lenAfterIndirections 0 _ chars = length chars
+lenAfterIndirections n kpt chars =
+  lenAfterIndirections (n - 1) ArrowPad (indirectlyType kpt chars)
 
 complexity :: [Char] -> Int
-complexity chars = length (indirectlyNType 3 chars) * read (init chars)
+complexity chars = lenAfterIndirections 3 NumPad chars * read (init chars)
 
 part1 :: [[Char]] -> Int
 part1 = sum . map complexity
