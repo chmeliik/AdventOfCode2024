@@ -1,10 +1,12 @@
 module Main (main) where
 
+import Control.Monad.State (State, evalState, gets, modify)
 import Data.Char (digitToInt)
+import Data.Map qualified as M
 
 type Pos = (Int, Int)
 
-data KeypadType = NumPad | ArrowPad
+data KeypadType = NumPad | ArrowPad deriving (Eq, Ord)
 
 illegalPos :: KeypadType -> Pos
 illegalPos NumPad = (3, 0)
@@ -43,18 +45,33 @@ indirectlyType kpt chars =
     initialPos = getPos kpt 'A'
     positions = map (getPos kpt) chars
 
-lenAfterIndirections :: Int -> KeypadType -> [Char] -> Int
-lenAfterIndirections 0 _ chars = length chars
-lenAfterIndirections n kpt chars =
-  sum $ map (lenAfterIndirections (n - 1) ArrowPad) (indirectlyType kpt chars)
+type Cached i o = State (M.Map i o) o
 
-complexity :: [Char] -> Int
-complexity chars = lenAfterIndirections 3 NumPad chars * read (init chars)
+lenAfterIndirections ::
+  Int -> KeypadType -> [Char] -> Cached (Int, KeypadType, [Char]) Int
+lenAfterIndirections 0 _ chars = pure $ length chars
+lenAfterIndirections n kpt chars = do
+  maybeCached <- gets (M.lookup (n, kpt, chars))
+  case maybeCached of
+    Just len -> pure len
+    Nothing -> do
+      len <-
+        sum <$> mapM (lenAfterIndirections (n - 1) ArrowPad) (indirectlyType kpt chars)
+      modify (M.insert (n, kpt, chars) len)
+      pure len
+
+complexity :: Int -> [Char] -> Int
+complexity n chars =
+  evalState (lenAfterIndirections n NumPad chars) M.empty * read (init chars)
 
 part1 :: [[Char]] -> Int
-part1 = sum . map complexity
+part1 = sum . map (complexity 3)
+
+part2 :: [[Char]] -> Int
+part2 = sum . map (complexity 26)
 
 main :: IO ()
 main = do
   input <- lines <$> readFile "input.txt"
   print $ part1 input
+  print $ part2 input
