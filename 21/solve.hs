@@ -36,9 +36,9 @@ goAndPress kpt (x1, y1) (x2, y2)
     vertically = replicate (abs dx) keyX
     horizontally = replicate (abs dy) keyY
 
-indirectlyType :: KeypadType -> [Char] -> [Char]
+indirectlyType :: KeypadType -> [Char] -> [[Char]]
 indirectlyType kpt chars =
-  concat $ zipWith (goAndPress kpt) (initialPos : positions) positions
+  zipWith (goAndPress kpt) (initialPos : positions) positions
   where
     initialPos = getPos kpt 'A'
     positions = map (getPos kpt) chars
@@ -46,7 +46,7 @@ indirectlyType kpt chars =
 lenAfterIndirections :: Int -> KeypadType -> [Char] -> Int
 lenAfterIndirections 0 _ chars = length chars
 lenAfterIndirections n kpt chars =
-  lenAfterIndirections (n - 1) ArrowPad (indirectlyType kpt chars)
+  sum $ map (lenAfterIndirections (n - 1) ArrowPad) (indirectlyType kpt chars)
 
 complexity :: [Char] -> Int
 complexity chars = lenAfterIndirections 3 NumPad chars * read (init chars)
