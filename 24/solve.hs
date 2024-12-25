@@ -3,7 +3,6 @@ module Main (main) where
 import Control.Monad.State (State, execState, gets, modify)
 import Data.List (foldl', isPrefixOf)
 import Data.Map qualified as M
-import Data.Maybe (fromJust)
 
 type Wire = String
 
@@ -22,7 +21,7 @@ evalWire circuit wire = do
   case maybeVal of
     Just b -> pure b
     Nothing -> do
-      b <- evalGate circuit $ fromJust $ M.lookup wire circuit
+      b <- maybe (pure False) (evalGate circuit) $ M.lookup wire circuit
       modify (M.insert wire b)
       pure b
 
@@ -34,10 +33,17 @@ evalGate circuit gate = case gate of
   where
     ev = evalWire circuit
 
-evalAll :: Inputs -> Circuit -> Inputs
-evalAll inputs circuit = execState evalWires inputs
+evalFirstNBits :: Int -> Inputs -> Circuit -> Inputs
+evalFirstNBits n inputs circuit =
+  execState (mapM (evalWire circuit) relevantOutputs) relevantInputs
   where
-    evalWires = mapM (evalWire circuit) (M.keys circuit)
+    relevantInputs =
+      M.filterWithKey (\(c : cs) _ -> c `elem` "xy" && read cs < n) inputs
+    -- the output has +1 bits compared to the inputs
+    relevantOutputs = filter (\(c : cs) -> c == 'z' && read cs < n + 1) $ M.keys circuit
+
+evalAll :: Inputs -> Circuit -> Inputs
+evalAll = evalFirstNBits 45 -- inputs are 45-bit
 
 toNumber :: Inputs -> String -> Int
 toNumber inputs wiretype = sum $ map eval wires
